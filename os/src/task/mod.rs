@@ -17,9 +17,10 @@ mod task;
 use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use lazy_static::*;
 pub use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus, TaskStatistics};
 
 pub use context::TaskContext;
 
@@ -54,6 +55,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_statistics: TaskStatistics::zero_init(),
         }; MAX_APP_NUM];
         for (i, t) in tasks.iter_mut().enumerate().take(num_app) {
             t.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -79,6 +81,7 @@ impl TaskManager {
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
+        task0.task_statistics.first_run_time = get_time_us();
         task0.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
@@ -121,6 +124,9 @@ impl TaskManager {
         if let Some(next) = self.find_next_task() {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
+            if inner.tasks[next].task_statistics.first_run_time == 0 {
+                inner.tasks[next].task_statistics.first_run_time = get_time_us();
+            }
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
@@ -134,6 +140,21 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    }
+
+    /// Return the stats for the current task
+    /// 
+    /// It does a somehow costly copy for each call for now.
+    fn sys_call_stat(&self) -> TaskStatistics {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].task_statistics.clone()
+    }
+
+    /// Update the sys call stat
+    fn update_sys_call_stat(&self, sys_call: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_statistics.sys_call_stat[sys_call] += 1;
     }
 
     // LAB1: Try to implement your function to update or get task info!
@@ -172,5 +193,13 @@ pub fn exit_current_and_run_next() {
     run_next_task();
 }
 
-// LAB1: Public functions implemented here provide interfaces.
-// You may use TASK_MANAGER member functions to handle requests.
+/// Return the stats for the current task
+pub fn sys_call_stat() -> TaskStatistics {
+    TASK_MANAGER.sys_call_stat()
+}
+
+/// Update the sys call stat for the current task
+pub fn update_sys_call_stat(sys_call: usize) {
+    TASK_MANAGER.update_sys_call_stat(sys_call);
+}
+

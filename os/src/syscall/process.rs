@@ -1,7 +1,7 @@
 //! Process management syscalls
 
-use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus};
+use crate::config::MAX_SYSCALL_NUM;
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, sys_call_stat};
 use crate::timer::get_time_us;
 
 #[repr(C)]
@@ -42,7 +42,17 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     0
 }
 
-/// YOUR JOB: Finish sys_task_info to pass testcases
+/// fill the struct pointed by ti with task info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    -1
+    if ti.is_null() {
+        return -1;
+    }
+    let stat = sys_call_stat();
+    // Unsafe indeed. Maybe we can do better after Ch. 4.
+    unsafe {
+        (*ti).status = TaskStatus::Running;
+        (*ti).syscall_times = stat.sys_call_stat;
+        (*ti).time = (get_time_us() - stat.first_run_time) / 1000;
+    }
+    0
 }
