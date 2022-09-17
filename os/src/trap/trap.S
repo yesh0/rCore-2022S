@@ -49,6 +49,7 @@ __restore:
     # restore general-purpuse registers except sp/tp
     ld x1, 1*8(sp)
     ld x3, 3*8(sp)
+    ld x4, 4*8(sp)
     .set n, 5
     .rept 27
         LOAD_GP %n
