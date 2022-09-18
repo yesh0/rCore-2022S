@@ -1,9 +1,9 @@
 //! Process management syscalls
 
-use crate::mm::{translated_refmut, translated_ref, translated_str, translated_byte_buffer};
+use crate::mm::{translated_refmut, translated_ref, translated_str, translated_byte_buffer, VirtPageNum};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TaskStatus, sys_call_stat,
+    suspend_current_and_run_next, TaskStatus, sys_call_stat, deallocate_page, allocate_page,
 };
 use crate::fs::{open_file, OpenFlags};
 use crate::timer::get_time_us;
@@ -113,7 +113,7 @@ fn write_to_user_buffer(buffer: &[u8], ptr: *mut u8) {
     let dsts = translated_byte_buffer(current_user_token(), ptr, buffer.len());
     let mut i = 0usize;
     for dst in dsts {
-        let slice = &buffer[i .. dst.len()];
+        let slice = &buffer[i..dst.len()];
         dst.copy_from_slice(slice);
         i += dst.len();
     }
@@ -129,10 +129,13 @@ fn write_to_user_ptr<T>(t: T, ptr: *mut T) {
 /// stores time info into the supplied pointer
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     let us = get_time_us();
-    write_to_user_ptr(TimeVal {
-        sec: us / 1_000_000,
-        usec: us % 1_000_000,
-    }, ts);
+    write_to_user_ptr(
+        TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+        },
+        ts,
+    );
     0
 }
 
@@ -152,13 +155,30 @@ pub fn sys_set_priority(_prio: isize) -> isize {
     -1
 }
 
-// YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    if start & ((1usize << 12) - 1) != 0 || port & !0x7usize != 0 || port == 0 {
+        return -1;
+    }
+    let rwx = [port & 1 != 0, port & 2 != 0, port & 4 != 0];
+    for addr in (start..(start + len)).step_by(1 << 12) {
+        if !allocate_page(VirtPageNum::from(addr >> 12), rwx) {
+            sys_munmap(start, addr - start);
+            return -1;
+        }
+    }
+    0
 }
 
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    if start & (1usize << 12 - 1) != 0 {
+        return -1;
+    }
+    for addr in (start..(start + len)).step_by(1 << 12) {
+        if !deallocate_page(VirtPageNum::from(addr >> 12)) {
+            return -1;
+        }
+    }
+    0
 }
 
 //

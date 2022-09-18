@@ -17,16 +17,17 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use crate::config::PAGE_SIZE;
+use crate::fs::{open_file, OpenFlags};
+use crate::mm::MapPermission;
+use crate::mm::VirtAddr;
+use crate::mm::VirtPageNum;
+pub use crate::syscall::process::TaskInfo;
+use crate::timer::get_time_us;
 use alloc::sync::Arc;
 use lazy_static::*;
 use manager::fetch_task;
 use switch::__switch;
-use crate::mm::VirtAddr;
-use crate::mm::MapPermission;
-use crate::config::PAGE_SIZE;
-use crate::timer::get_time_us;
-pub use crate::syscall::process::TaskInfo;
-use crate::fs::{open_file, OpenFlags};
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
@@ -123,4 +124,18 @@ pub fn update_sys_call_stat(sys_call: usize) {
     // ---- access current TCB exclusively
     let mut task_inner = task.inner_exclusive_access();
     task_inner.task_statistics.sys_call_stat[sys_call] += 1;
+}
+
+pub fn allocate_page(vpn: VirtPageNum, rwx: [bool; 3]) -> bool {
+    let task = current_task().unwrap();
+
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.memory_set.allocate(vpn, rwx)
+}
+
+pub fn deallocate_page(vpn: VirtPageNum) -> bool {
+    let task = current_task().unwrap();
+
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.memory_set.deallocate(vpn)
 }
