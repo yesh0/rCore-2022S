@@ -2,9 +2,10 @@
 
 use super::TaskContext;
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT;
+use crate::config::{TRAP_CONTEXT, MAX_SYSCALL_NUM};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
@@ -13,6 +14,18 @@ use crate::fs::{File, Stdin, Stdout};
 use alloc::string::String;
 use crate::mm::translated_refmut;
 
+#[derive(Copy, Clone)]
+/// task stats
+pub struct TaskStatistics {
+    pub sys_call_stat: [u32; MAX_SYSCALL_NUM],
+    pub first_run_time: usize,
+}
+
+impl TaskStatistics {
+    pub fn zero_init() -> TaskStatistics {
+        TaskStatistics { sys_call_stat: [0; MAX_SYSCALL_NUM], first_run_time: get_time_us() }
+    }
+}
 /// Task control block structure
 ///
 /// Directly save the contents that will not change during running
@@ -36,6 +49,8 @@ pub struct TaskControlBlockInner {
     /// Application data can only appear in areas
     /// where the application address space is lower than base_size
     pub base_size: usize,
+    /// Application stats for sys_task_info
+    pub task_statistics: TaskStatistics,
     /// Save task context
     pub task_cx: TaskContext,
     /// Maintain the execution status of the current process
@@ -110,6 +125,7 @@ impl TaskControlBlock {
                 UPSafeCell::new(TaskControlBlockInner {
                     trap_cx_ppn,
                     base_size: user_sp,
+                    task_statistics: TaskStatistics::zero_init(),
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),
                     task_status: TaskStatus::Ready,
                     memory_set,
@@ -193,6 +209,7 @@ impl TaskControlBlock {
                 UPSafeCell::new(TaskControlBlockInner {
                     trap_cx_ppn,
                     base_size: parent_inner.base_size,
+                    task_statistics: TaskStatistics::zero_init(),
                     task_cx: TaskContext::goto_trap_return(kernel_stack_top),
                     task_status: TaskStatus::Ready,
                     memory_set,
@@ -219,6 +236,7 @@ impl TaskControlBlock {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, PartialEq)]
 /// task status: UnInit, Ready, Running, Exited
 pub enum TaskStatus {

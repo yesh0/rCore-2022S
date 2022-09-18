@@ -1,9 +1,9 @@
 //! Process management syscalls
 
-use crate::mm::{translated_refmut, translated_ref, translated_str};
+use crate::mm::{translated_refmut, translated_ref, translated_str, translated_byte_buffer};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TaskStatus,
+    suspend_current_and_run_next, TaskStatus, sys_call_stat,
 };
 use crate::fs::{open_file, OpenFlags};
 use crate::timer::get_time_us;
@@ -109,21 +109,42 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
     // ---- release current PCB lock automatically
 }
 
-// YOUR JOB: 引入虚地址后重写 sys_get_time
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    let _us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
+fn write_to_user_buffer(buffer: &[u8], ptr: *mut u8) {
+    let dsts = translated_byte_buffer(current_user_token(), ptr, buffer.len());
+    let mut i = 0usize;
+    for dst in dsts {
+        let slice = &buffer[i .. dst.len()];
+        dst.copy_from_slice(slice);
+        i += dst.len();
+    }
+}
+
+fn write_to_user_ptr<T>(t: T, ptr: *mut T) {
+    let content = unsafe {
+        core::slice::from_raw_parts(&t as *const T as *const u8, core::mem::size_of::<T>())
+    };
+    write_to_user_buffer(content, ptr as *mut u8);
+}
+
+/// stores time info into the supplied pointer
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
+    let us = get_time_us();
+    write_to_user_ptr(TimeVal {
+        sec: us / 1_000_000,
+        usec: us % 1_000_000,
+    }, ts);
     0
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    -1
+    let stat = sys_call_stat();
+    write_to_user_ptr(TaskInfo {
+        status: TaskStatus::Running,
+        syscall_times: stat.sys_call_stat,
+        time: (get_time_us() - stat.first_run_time) / 1000,
+    }, ti);
+    0
 }
 
 // YOUR JOB: 实现sys_set_priority，为任务添加优先级
