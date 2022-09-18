@@ -1,8 +1,21 @@
 //! Types related to task management
 use super::TaskContext;
-use crate::config::{kernel_stack_position, TRAP_CONTEXT};
+use crate::config::{kernel_stack_position, TRAP_CONTEXT, MAX_SYSCALL_NUM};
 use crate::mm::{MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::trap::{trap_handler, TrapContext};
+
+#[derive(Copy, Clone)]
+/// task stats
+pub struct TaskStatistics {
+    pub sys_call_stat: [u32; MAX_SYSCALL_NUM],
+    pub first_run_time: usize,
+}
+
+impl TaskStatistics {
+    pub fn zero_init() -> TaskStatistics {
+        TaskStatistics { sys_call_stat: [0; MAX_SYSCALL_NUM], first_run_time: 0 }
+    }
+}
 
 /// task control block structure
 pub struct TaskControlBlock {
@@ -11,6 +24,7 @@ pub struct TaskControlBlock {
     pub memory_set: MemorySet,
     pub trap_cx_ppn: PhysPageNum,
     pub base_size: usize,
+    pub task_statistics: TaskStatistics,
 }
 
 impl TaskControlBlock {
@@ -41,6 +55,7 @@ impl TaskControlBlock {
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,
+            task_statistics: TaskStatistics::zero_init(),
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
