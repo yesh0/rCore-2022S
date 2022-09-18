@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::VirtPageNum;
 use crate::sync::UPSafeCell;
 use crate::timer::get_time_us;
 use crate::trap::TrapContext;
@@ -169,6 +170,21 @@ impl TaskManager {
         let current = inner.current_task;
         inner.tasks[current].task_statistics.sys_call_stat[sys_call] += 1;
     }
+
+    /// Allocate some
+    fn allocate_page(&self, vpn: VirtPageNum, rwx: [bool; 3]) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let task = &mut inner.tasks[current];
+        task.memory_set.allocate(vpn, rwx)
+    }
+
+    fn deallocate_page(&self, vpn: VirtPageNum) -> bool {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        let task = &mut inner.tasks[current];
+        task.memory_set.deallocate(vpn)
+    }
 }
 
 /// Run the first task in task list.
@@ -222,4 +238,13 @@ pub fn sys_call_stat() -> TaskStatistics {
 /// Update the sys call stat for the current task
 pub fn update_sys_call_stat(sys_call: usize) {
     TASK_MANAGER.update_sys_call_stat(sys_call);
+}
+
+/// Allocate some
+pub fn allocate_page(vpn: VirtPageNum, rwx: [bool; 3]) -> bool {
+    TASK_MANAGER.allocate_page(vpn, rwx)
+}
+/// Deallocate some
+pub fn deallocate_page(vpn: VirtPageNum) -> bool {
+    TASK_MANAGER.deallocate_page(vpn)
 }
