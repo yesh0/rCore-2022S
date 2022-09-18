@@ -17,7 +17,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::loader::get_app_data_by_name;
+use crate::{loader::get_app_data_by_name, mm::VirtPageNum};
 use alloc::sync::Arc;
 use lazy_static::*;
 use manager::fetch_task;
@@ -116,4 +116,18 @@ pub fn update_sys_call_stat(sys_call: usize) {
     // ---- access current TCB exclusively
     let mut task_inner = task.inner_exclusive_access();
     task_inner.task_statistics.sys_call_stat[sys_call] += 1;
+}
+
+pub fn allocate_page(vpn: VirtPageNum, rwx: [bool; 3]) -> bool {
+    let task = current_task().unwrap();
+
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.memory_set.allocate(vpn, rwx)
+}
+
+pub fn deallocate_page(vpn: VirtPageNum) -> bool {
+    let task = current_task().unwrap();
+
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.memory_set.deallocate(vpn)
 }

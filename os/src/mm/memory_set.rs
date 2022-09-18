@@ -35,6 +35,7 @@ lazy_static! {
 pub struct MemorySet {
     page_table: PageTable,
     areas: Vec<MapArea>,
+    allocated: BTreeMap<VirtPageNum, FrameTracker>,
 }
 
 impl MemorySet {
@@ -42,6 +43,7 @@ impl MemorySet {
         Self {
             page_table: PageTable::new(),
             areas: Vec::new(),
+            allocated: BTreeMap::new(),
         }
     }
     pub fn token(&self) -> usize {
@@ -251,6 +253,39 @@ impl MemorySet {
     pub fn recycle_data_pages(&mut self) {
         //*self = Self::new_bare();
         self.areas.clear();
+    }
+    pub fn allocate(&mut self, vpn: VirtPageNum, rwx: [bool; 3]) -> bool {
+        let frame = frame_alloc();
+        match frame {
+            None => false,
+            Some(f) => {
+                let ppn = f.ppn;
+                let mut flags: PTEFlags = PTEFlags::A | PTEFlags::D | PTEFlags::U;
+                if rwx[0] {
+                    flags.insert(PTEFlags::R);
+                }
+                if rwx[1] {
+                    flags.insert(PTEFlags::W);
+                }
+                if rwx[2] {
+                    flags.insert(PTEFlags::X);
+                }
+                if self.page_table.map(vpn, ppn, flags) {
+                    self.allocated.insert(vpn, f);
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+    }
+    pub fn deallocate(&mut self, vpn: VirtPageNum) -> bool {
+        let pages = &mut self.page_table;
+        if self.allocated.remove(&vpn).is_some() {
+            pages.unmap(vpn)
+        } else {
+            false
+        }
     }
 }
 
