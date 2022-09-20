@@ -65,6 +65,10 @@ pub struct TaskControlBlockInner {
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
+    /// scheduling stride
+    pub stride: usize,
+    /// scheduling priority
+    pub prio: usize,
 }
 
 /// Simple access to its internal fields
@@ -140,6 +144,8 @@ impl TaskControlBlock {
                         // 2 -> stderr
                         Some(Arc::new(Stdout)),
                     ],
+                    stride: 0,
+                    prio: 16,
                 })
             },
         };
@@ -217,6 +223,8 @@ impl TaskControlBlock {
                     children: Vec::new(),
                     exit_code: 0,
                     fd_table: new_fd_table,
+                    stride: 0,
+                    prio: 16,
                 })
             },
         });

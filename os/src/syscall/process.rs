@@ -3,7 +3,7 @@
 use crate::mm::{translated_refmut, translated_ref, translated_str, translated_byte_buffer, VirtPageNum};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TaskStatus, sys_call_stat, deallocate_page, allocate_page,
+    suspend_current_and_run_next, TaskStatus, sys_call_stat, deallocate_page, allocate_page, TaskControlBlock,
 };
 use crate::fs::{open_file, OpenFlags};
 use crate::timer::get_time_us;
@@ -139,7 +139,6 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     0
 }
 
-// YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     let stat = sys_call_stat();
     write_to_user_ptr(TaskInfo {
@@ -150,9 +149,13 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     0
 }
 
-// YOUR JOB: 实现sys_set_priority，为任务添加优先级
-pub fn sys_set_priority(_prio: isize) -> isize {
-    -1
+pub fn sys_set_priority(prio: isize) -> isize {
+    if prio > 1 {
+        current_task().unwrap().as_ref().inner_exclusive_access().prio = prio as usize;
+        prio
+    } else {
+        -1
+    }
 }
 
 pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
@@ -181,9 +184,22 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
     0
 }
 
-//
-// YOUR JOB: 实现 sys_spawn 系统调用
-// ALERT: 注意在实现 SPAWN 时不需要复制父进程地址空间，SPAWN != FORK + EXEC 
-pub fn sys_spawn(_path: *const u8) -> isize {
-    -1
+pub fn sys_spawn(path: *const u8) -> isize {
+    let token = current_user_token();
+    let path = translated_str(token, path);
+
+    if let Some(inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
+        let task = Arc::new(TaskControlBlock::new(inode.read_all().as_slice()));
+        add_task(task.clone());
+        let child = task.as_ref();
+        let mut child_inner = child.inner_exclusive_access();
+        let parent = current_task().unwrap();
+        child_inner.parent = Some(Arc::downgrade(&parent));
+        parent.inner_exclusive_access().children.push(task.clone());
+        let pid = child.getpid() as isize;
+        drop(child);
+        pid
+    } else {
+        -1
+    }
 }
