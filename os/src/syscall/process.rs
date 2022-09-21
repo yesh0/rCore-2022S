@@ -5,7 +5,7 @@ use crate::fs::{open_file, OpenFlags};
 use crate::mm::{translated_ref, translated_refmut, translated_str, translated_byte_buffer};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TaskStatus, TaskControlBlock,
+    suspend_current_and_run_next, TaskStatus, TaskControlBlock, sys_call_stat,
 };
 use crate::timer::get_time_us;
 use alloc::string::String;
@@ -125,6 +125,7 @@ fn write_to_user_ptr<T>(t: T, ptr: *mut T) {
     write_to_user_buffer(content, ptr as *mut u8);
 }
 
+/// stores time info into the supplied pointer
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     let _us = get_time_us();
     let us = get_time_us();
@@ -138,9 +139,14 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     0
 }
 
-// YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    -1
+    let stat = sys_call_stat();
+    write_to_user_ptr(TaskInfo {
+        status: TaskStatus::Running,
+        syscall_times: stat.sys_call_stat,
+        time: (get_time_us() - stat.first_run_time) / 1000,
+    }, ti);
+    0
 }
 
 pub fn sys_set_priority(prio: isize) -> isize {

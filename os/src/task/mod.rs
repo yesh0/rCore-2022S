@@ -36,6 +36,8 @@ pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
 };
 
+use self::task::TaskStatistics;
+
 /// Make current task suspended and switch to the next task
 pub fn suspend_current_and_run_next() {
     // There must be an application running.
@@ -103,4 +105,22 @@ lazy_static! {
 
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+}
+
+pub fn sys_call_stat() -> TaskStatistics {
+    // There must be an application running.
+    let task = current_task().unwrap();
+
+    // ---- access current TCB exclusively
+    let task_inner = task.inner_exclusive_access();
+    task_inner.task_statistics.clone()
+}
+
+pub fn update_sys_call_stat(sys_call: usize) {
+    // There must be an application running.
+    let task = current_task().unwrap();
+
+    // ---- access current TCB exclusively
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.task_statistics.sys_call_stat[sys_call] += 1;
 }

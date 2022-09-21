@@ -2,9 +2,10 @@
 
 use super::TaskContext;
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT;
+use crate::config::{TRAP_CONTEXT, MAX_SYSCALL_NUM};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
@@ -12,6 +13,19 @@ use core::cell::RefMut;
 use crate::fs::{File, Stdin, Stdout};
 use alloc::string::String;
 use crate::mm::translated_refmut;
+
+#[derive(Copy, Clone)]
+/// task stats
+pub struct TaskStatistics {
+    pub sys_call_stat: [u32; MAX_SYSCALL_NUM],
+    pub first_run_time: usize,
+}
+
+impl TaskStatistics {
+    pub fn zero_init() -> TaskStatistics {
+        TaskStatistics { sys_call_stat: [0; MAX_SYSCALL_NUM], first_run_time: get_time_us() }
+    }
+}
 
 /// Task control block structure
 ///
@@ -52,6 +66,7 @@ pub struct TaskControlBlockInner {
     pub fd_table: Vec<Option<Arc<dyn File + Send + Sync>>>,
     pub stride: usize,
     pub prio: usize,
+    pub task_statistics: TaskStatistics,
 }
 
 /// Simple access to its internal fields
@@ -128,6 +143,7 @@ impl TaskControlBlock {
                     ],
                     stride: 0,
                     prio: 16,
+                    task_statistics: TaskStatistics::zero_init(),
                 })
             },
         };
@@ -206,6 +222,7 @@ impl TaskControlBlock {
                     fd_table: new_fd_table,
                     stride: 0,
                     prio: 16,
+                    task_statistics: TaskStatistics::zero_init(),
                 })
             },
         });
