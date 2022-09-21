@@ -21,6 +21,8 @@ pub struct Processor {
     idle_task_cx: TaskContext,
 }
 
+const BIG_STRIDE: usize = 1024;
+
 impl Processor {
     pub fn new() -> Self {
         Self {
@@ -55,6 +57,7 @@ pub fn run_tasks() {
             let idle_task_cx_ptr = processor.get_idle_task_cx_ptr();
             // access coming task TCB exclusively
             let mut task_inner = task.inner_exclusive_access();
+            task_inner.stride += BIG_STRIDE / task_inner.prio;
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
             drop(task_inner);
