@@ -5,7 +5,19 @@ use super::{kstack_alloc, KernelStack, ProcessControlBlock, TaskContext};
 use crate::trap::TrapContext;
 use crate::{mm::PhysPageNum, sync::UPSafeCell};
 use alloc::sync::{Arc, Weak};
+use alloc::vec::Vec;
 use core::cell::RefMut;
+
+#[derive(PartialEq, Clone, Copy)]
+pub enum ResourceType {
+    Semaphore,
+    Mutex,
+}
+
+pub struct Resource {
+    pub type_: ResourceType,
+    pub id: usize,
+}
 
 /// Task control block structure
 ///
@@ -34,6 +46,10 @@ pub struct TaskControlBlockInner {
     pub exit_code: Option<i32>,
     /// Tid and ustack will be deallocated when this goes None
     pub res: Option<TaskUserRes>,
+    /// Used resource
+    pub resources: Vec<Resource>,
+    /// Blocking resource
+    pub need: Option<Resource>,
 }
 
 /// Simple access to its internal fields
@@ -73,6 +89,8 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kstack_top),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
+                    resources: Vec::new(),
+                    need: None,
                 })
             },
         }
@@ -124,6 +142,8 @@ impl TaskControlBlock {
                     task_cx: context,
                     task_status: TaskStatus::Ready,
                     exit_code: None,
+                    resources: Vec::new(),
+                    need: None,
                 })
             },
         }

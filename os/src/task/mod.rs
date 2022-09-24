@@ -39,7 +39,7 @@ pub use processor::{
 };
 pub use stackless_coroutine::kernel_stackless_coroutine_test;
 use switch::__switch;
-pub use task::{TaskControlBlock, TaskStatus};
+pub use task::{TaskControlBlock, TaskStatus, Resource, ResourceType};
 
 pub fn block_current_and_run_next() {
     let task = take_current_task().unwrap();
