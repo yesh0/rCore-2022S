@@ -97,8 +97,9 @@ impl DiskInodeInfo {
     fn increment_ref(&mut self) {
         self.0 += 0x100;
     }
-    fn decrement_ref(&mut self) {
-        self.0 += 0x100;
+    fn decrement_ref(&mut self) -> u32 {
+        self.0 -= 0x100;
+        self.0
     }
     fn ref_count(&self) -> u32 {
         self.0 >> 8
@@ -148,8 +149,8 @@ impl DiskInode {
     pub fn inc_ref(&mut self) {
         self.info.increment_ref();
     }
-    pub fn dec_ref(&mut self) {
-        self.info.decrement_ref();
+    pub fn dec_ref(&mut self) -> u32 {
+        self.info.decrement_ref()
     }
     pub fn refs(&self) -> u32 {
         self.info.ref_count()

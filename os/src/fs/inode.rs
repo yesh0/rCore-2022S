@@ -101,6 +101,14 @@ impl OpenFlags {
     }
 }
 
+pub fn link_file(name: &str, to: &str) -> Option<Arc<Inode>> {
+    ROOT_INODE.link(name, to)
+}
+
+pub fn unlink_file(name: &str) -> bool {
+    ROOT_INODE.unlink(name)
+}
+
 /// Open a file by path
 pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
     let (readable, writable) = flags.read_write();

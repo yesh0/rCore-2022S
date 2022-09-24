@@ -1,8 +1,10 @@
 //! File and filesystem-related syscalls
 
+use crate::fs::link_file;
 use crate::fs::open_file;
 use crate::fs::OpenFlags;
 use crate::fs::Stat;
+use crate::fs::unlink_file;
 use crate::mm::translated_byte_buffer;
 use crate::mm::translated_refmut;
 use crate::mm::translated_str;
@@ -102,10 +104,23 @@ pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
     }
 }
 
-pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {
-    -1
+pub fn sys_linkat(old_name: *const u8, new_name: *const u8) -> isize {
+    let token = current_user_token();
+    let name = translated_str(token, new_name);
+    let to = translated_str(token, old_name);
+    if link_file(&name, &to).is_some() {
+        0
+    } else {
+        -1
+    }
 }
 
-pub fn sys_unlinkat(_name: *const u8) -> isize {
-    -1
+pub fn sys_unlinkat(name: *const u8) -> isize {
+    let token = current_user_token();
+    let name = translated_str(token, name);
+    if unlink_file(&name) {
+        0
+    } else {
+        -1
+    }
 }
