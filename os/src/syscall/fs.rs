@@ -1,15 +1,17 @@
 //! File and filesystem-related syscalls
 
-use crate::mm::translated_byte_buffer;
-use crate::mm::translated_str;
-use crate::mm::translated_refmut;
-use crate::task::current_user_token;
-use crate::task::current_task;
 use crate::fs::open_file;
 use crate::fs::OpenFlags;
 use crate::fs::Stat;
+use crate::mm::translated_byte_buffer;
+use crate::mm::translated_refmut;
+use crate::mm::translated_str;
 use crate::mm::UserBuffer;
+use crate::task::current_task;
+use crate::task::current_user_token;
 use alloc::sync::Arc;
+
+use super::process::write_to_user_ptr;
 
 pub fn sys_write(fd: usize, buf: *const u8, len: usize) -> isize {
     let token = current_user_token();
@@ -79,9 +81,25 @@ pub fn sys_close(fd: usize) -> isize {
     0
 }
 
-// YOUR JOB: 扩展 easy-fs 和内核以实现以下三个 syscall
-pub fn sys_fstat(_fd: usize, _st: *mut Stat) -> isize {
-   -1
+pub fn sys_fstat(fd: usize, st: *mut Stat) -> isize {
+    let task = current_task().unwrap();
+    let inner = task.as_ref().inner_exclusive_access();
+    if fd >= inner.fd_table.len() {
+        return -1;
+    }
+    if let Some(file) = &inner.fd_table[fd] {
+        let file = file.clone();
+        // release current task TCB manually to avoid multi-borrow
+        drop(inner);
+        if let Some(stat) = file.stat() {
+            write_to_user_ptr(stat, st);
+            0
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
 }
 
 pub fn sys_linkat(_old_name: *const u8, _new_name: *const u8) -> isize {

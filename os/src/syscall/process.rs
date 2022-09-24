@@ -119,7 +119,7 @@ fn write_to_user_buffer(buffer: &[u8], ptr: *mut u8) {
     }
 }
 
-fn write_to_user_ptr<T>(t: T, ptr: *mut T) {
+pub fn write_to_user_ptr<T>(t: T, ptr: *mut T) {
     let content = unsafe {
         core::slice::from_raw_parts(&t as *const T as *const u8, core::mem::size_of::<T>())
     };

@@ -8,7 +8,7 @@ use alloc::sync::Arc;
 use lazy_static::*;
 use bitflags::*;
 use alloc::vec::Vec;
-use super::File;
+use super::{File, Stat, StatMode};
 use crate::mm::UserBuffer;
 
 /// A wrapper around a filesystem inode
@@ -140,6 +140,16 @@ pub fn open_file(name: &str, flags: OpenFlags) -> Option<Arc<OSInode>> {
 }
 
 impl File for OSInode {
+    fn stat(&self) -> Option<super::Stat> {
+        let inner = self.inner.exclusive_access();
+        Some(Stat {
+            dev: 0,
+            ino: inner.inode.inode_id() as u64,
+            mode: if inner.inode.is_dir() { StatMode::DIR } else { StatMode::FILE },
+            nlink: inner.inode.refs(),
+            pad: [0u64; 7],
+        })
+    }
     fn readable(&self) -> bool { self.readable }
     fn writable(&self) -> bool { self.writable }
     fn read(&self, mut buf: UserBuffer) -> usize {

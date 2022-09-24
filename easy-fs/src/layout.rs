@@ -76,8 +76,39 @@ impl SuperBlock {
 /// Type of a disk inode
 #[derive(PartialEq)]
 pub enum DiskInodeType {
-    File,
-    Directory,
+    File = 1,
+    Directory = 2,
+}
+
+/// Disk inode info compacted into u32
+#[repr(C)]
+struct DiskInodeInfo(u32);
+
+impl DiskInodeInfo {
+    fn set_type(&mut self, type_: DiskInodeType) {
+        self.0 = (self.0 & !0xff) | type_ as u32;
+    }
+    fn is_file(&self) -> bool {
+        self.0 & 0xff == DiskInodeType::File as u32
+    }
+    fn is_dir(&self) -> bool {
+        self.0 & 0xff == DiskInodeType::Directory as u32
+    }
+    fn increment_ref(&mut self) {
+        self.0 += 0x100;
+    }
+    fn decrement_ref(&mut self) {
+        self.0 += 0x100;
+    }
+    fn ref_count(&self) -> u32 {
+        self.0 >> 8
+    }
+    fn new(type_: DiskInodeType) -> DiskInodeInfo {
+        let mut info = DiskInodeInfo(0);
+        info.increment_ref();
+        info.set_type(type_);
+        info
+    }
 }
 
 /// A indirect block
@@ -92,7 +123,7 @@ pub struct DiskInode {
     pub direct: [u32; INODE_DIRECT_COUNT],
     pub indirect1: u32,
     pub indirect2: u32,
-    type_: DiskInodeType,
+    info: DiskInodeInfo,
 }
 
 impl DiskInode {
@@ -103,16 +134,25 @@ impl DiskInode {
         self.direct.iter_mut().for_each(|v| *v = 0);
         self.indirect1 = 0;
         self.indirect2 = 0;
-        self.type_ = type_;
+        self.info = DiskInodeInfo::new(type_);
     }
     /// Whether this inode is a directory
     pub fn is_dir(&self) -> bool {
-        self.type_ == DiskInodeType::Directory
+        self.info.is_dir()
     }
     /// Whether this inode is a file
     #[allow(unused)]
     pub fn is_file(&self) -> bool {
-        self.type_ == DiskInodeType::File
+        self.info.is_file()
+    }
+    pub fn inc_ref(&mut self) {
+        self.info.increment_ref();
+    }
+    pub fn dec_ref(&mut self) {
+        self.info.decrement_ref();
+    }
+    pub fn refs(&self) -> u32 {
+        self.info.ref_count()
     }
     /// Get the number of data blocks corresponding to size
     pub fn data_blocks(&self) -> u32 {

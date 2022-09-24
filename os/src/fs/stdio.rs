@@ -9,6 +9,7 @@ pub struct Stdin;
 pub struct Stdout;
 
 impl File for Stdin {
+    fn stat(&self) -> Option<super::Stat> { None }
     fn readable(&self) -> bool { true }
     fn writable(&self) -> bool { false }
     fn read(&self, mut user_buf: UserBuffer) -> usize {
@@ -34,6 +35,7 @@ impl File for Stdin {
 }
 
 impl File for Stdout {
+    fn stat(&self) -> Option<super::Stat> { None }
     fn readable(&self) -> bool { false }
     fn writable(&self) -> bool { true }
     fn read(&self, _user_buf: UserBuffer) -> usize{

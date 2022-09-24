@@ -36,6 +36,19 @@ impl Inode {
             block_device,
         }
     }
+    pub fn inode_id(&self) -> u32 {
+        self.fs.lock().get_disk_pos_inode(self.block_id as u32, self.block_offset)
+    }
+    pub fn refs(&self) -> u32 {
+        self.read_disk_inode(|disk_node| {
+            disk_node.refs()
+        })
+    }
+    pub fn is_dir(&self) -> bool {
+        self.read_disk_inode(|disk_node| {
+            disk_node.is_dir()
+        })
+    }
     /// Call a function over a disk inode to read it
     fn read_disk_inode<V>(&self, f: impl FnOnce(&DiskInode) -> V) -> V {
         get_block_cache(
@@ -50,12 +63,12 @@ impl Inode {
             Arc::clone(&self.block_device)
         ).lock().modify(self.block_offset, f)
     }
-    /// Find inode under a disk inode by name
-    fn find_inode_id(
+    /// Find the dir entry and its index
+    fn find_dirent(
         &self,
         name: &str,
         disk_inode: &DiskInode,
-    ) -> Option<u32> {
+    ) -> Option<(DirEntry, usize)> {
         // assert it is a directory
         assert!(disk_inode.is_dir());
         let file_count = (disk_inode.size as usize) / DIRENT_SZ;
@@ -70,10 +83,21 @@ impl Inode {
                 DIRENT_SZ,
             );
             if dirent.name() == name {
-                return Some(dirent.inode_number() as u32);
+                return Some((dirent, i));
             }
         }
         None
+    }
+    /// Find inode under a disk inode by name
+    fn find_inode_id(
+        &self,
+        name: &str,
+        disk_inode: &DiskInode,
+    ) -> Option<u32> {
+        match self.find_dirent(name, disk_inode) {
+            Some((dirent, _)) => Some(dirent.inode_number()),
+            None => None
+        }
     }
     /// Find inode under current inode by name
     pub fn find(&self, name: &str) -> Option<Arc<Inode>> {
