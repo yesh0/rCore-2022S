@@ -67,6 +67,10 @@ impl TaskControlBlockInner {
     fn get_status(&self) -> TaskStatus {
         self.task_status
     }
+
+    pub fn confirm_getting_resource(&mut self) {
+        self.resources.push(self.need.take().unwrap());
+    }
 }
 
 impl TaskControlBlock {

@@ -35,6 +35,9 @@ impl Mutex for MutexSpin {
                 continue;
             } else {
                 *locked = true;
+                if let Some(task) = current_task() {
+                    task.inner_exclusive_access().confirm_getting_resource();
+                }
                 return;
             }
         }
@@ -80,6 +83,9 @@ impl Mutex for MutexBlocking {
             block_current_and_run_next();
         } else {
             mutex_inner.locked = true;
+            if let Some(task) = current_task() {
+                task.inner_exclusive_access().confirm_getting_resource();
+            }
         }
     }
 
@@ -87,6 +93,7 @@ impl Mutex for MutexBlocking {
         let mut mutex_inner = self.inner.exclusive_access();
         assert!(mutex_inner.locked);
         if let Some(waking_task) = mutex_inner.wait_queue.pop_front() {
+            waking_task.inner_exclusive_access().confirm_getting_resource();
             add_task(waking_task);
         } else {
             mutex_inner.locked = false;
