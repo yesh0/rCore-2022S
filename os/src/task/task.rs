@@ -19,11 +19,16 @@ use crate::mm::translated_refmut;
 pub struct TaskStatistics {
     pub sys_call_stat: [u32; MAX_SYSCALL_NUM],
     pub first_run_time: usize,
+    pub allocated: [u32; 212],
 }
 
 impl TaskStatistics {
     pub fn zero_init() -> TaskStatistics {
-        TaskStatistics { sys_call_stat: [0; MAX_SYSCALL_NUM], first_run_time: get_time_us() }
+        TaskStatistics {
+            sys_call_stat: [0; MAX_SYSCALL_NUM],
+            first_run_time: get_time_us(),
+            allocated: [0; 212],
+        }
     }
 }
 
