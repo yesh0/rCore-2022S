@@ -14,16 +14,18 @@ use crate::fs::{File, Stdin, Stdout};
 use alloc::string::String;
 use crate::mm::translated_refmut;
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 /// task stats
 pub struct TaskStatistics {
-    pub sys_call_stat: [u32; MAX_SYSCALL_NUM],
+    pub sys_call_stat: Vec<u32>,
     pub first_run_time: usize,
 }
 
 impl TaskStatistics {
     pub fn zero_init() -> TaskStatistics {
-        TaskStatistics { sys_call_stat: [0; MAX_SYSCALL_NUM], first_run_time: get_time_us() }
+        let mut vec = Vec::new();
+        vec.resize(MAX_SYSCALL_NUM, 0);
+        TaskStatistics { sys_call_stat: vec, first_run_time: get_time_us() }
     }
 }
 /// Task control block structure

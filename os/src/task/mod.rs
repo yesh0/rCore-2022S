@@ -17,7 +17,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::PAGE_SIZE;
+use crate::config::{PAGE_SIZE, MAX_SYSCALL_NUM};
 use crate::fs::{open_file, OpenFlags};
 use crate::mm::MapPermission;
 use crate::mm::VirtAddr;
@@ -25,6 +25,7 @@ use crate::mm::VirtPageNum;
 pub use crate::syscall::process::TaskInfo;
 use crate::timer::get_time_us;
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use lazy_static::*;
 use manager::fetch_task;
 use switch::__switch;
@@ -108,13 +109,17 @@ pub fn add_initproc() {
     add_task(INITPROC.clone());
 }
 
-pub fn sys_call_stat() -> TaskStatistics {
+pub fn sys_call_stat(stat: &mut [u32; MAX_SYSCALL_NUM]) {
     // There must be an application running.
     let task = current_task().unwrap();
 
     // ---- access current TCB exclusively
     let task_inner = task.inner_exclusive_access();
-    task_inner.task_statistics.clone()
+    stat.copy_from_slice(&task_inner.task_statistics.sys_call_stat)
+}
+
+pub fn get_task_creation_time() -> usize {
+    current_task().unwrap().inner_exclusive_access().task_statistics.first_run_time
 }
 
 pub fn update_sys_call_stat(sys_call: usize) {

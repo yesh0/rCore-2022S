@@ -3,7 +3,7 @@
 use crate::mm::{translated_refmut, translated_ref, translated_str, translated_byte_buffer, VirtPageNum};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
-    suspend_current_and_run_next, TaskStatus, sys_call_stat, deallocate_page, allocate_page, TaskControlBlock,
+    suspend_current_and_run_next, TaskStatus, sys_call_stat, deallocate_page, allocate_page, TaskControlBlock, get_task_creation_time,
 };
 use crate::fs::{open_file, OpenFlags};
 use crate::timer::get_time_us;
@@ -140,11 +140,12 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 }
 
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
-    let stat = sys_call_stat();
+    let mut call_stat = [0u32; MAX_SYSCALL_NUM];
+    sys_call_stat(&mut call_stat);
     write_to_user_ptr(TaskInfo {
         status: TaskStatus::Running,
-        syscall_times: stat.sys_call_stat,
-        time: (get_time_us() - stat.first_run_time) / 1000,
+        syscall_times: call_stat,
+        time: (get_time_us() - get_task_creation_time()) / 1000,
     }, ti);
     0
 }
@@ -189,16 +190,17 @@ pub fn sys_spawn(path: *const u8) -> isize {
     let path = translated_str(token, path);
 
     if let Some(inode) = open_file(path.as_str(), OpenFlags::RDONLY) {
-        let task = Arc::new(TaskControlBlock::new(inode.read_all().as_slice()));
-        add_task(task.clone());
+        let all_data = inode.read_all();
+        let task = Arc::new(TaskControlBlock::new(all_data.as_slice()));
         let child = task.as_ref();
-        let mut child_inner = child.inner_exclusive_access();
         let parent = current_task().unwrap();
+        let mut child_inner = child.inner_exclusive_access();
+        let mut parent_inner = parent.inner_exclusive_access();
+
         child_inner.parent = Some(Arc::downgrade(&parent));
-        parent.inner_exclusive_access().children.push(task.clone());
-        let pid = child.getpid() as isize;
-        drop(child);
-        pid
+        parent_inner.children.push(task.clone());
+        add_task(task.clone());
+        child.getpid() as isize
     } else {
         -1
     }

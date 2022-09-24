@@ -254,6 +254,20 @@ impl MemorySet {
                     .copy_from_slice(src_ppn.get_bytes_array());
             }
         }
+        for (vpn, _) in user_space.allocated.iter() {
+            let page = memory_set.translate(vpn.clone()).unwrap();
+            if !memory_set.allocate(
+                vpn.clone(),
+                [page.readable(), page.writable(), page.executable()],
+            ) {
+                panic!("OutOfMemory");
+            }
+            let src_ppn = user_space.translate(vpn.clone()).unwrap().ppn();
+            let dst_ppn = memory_set.translate(vpn.clone()).unwrap().ppn();
+            dst_ppn
+                .get_bytes_array()
+                .copy_from_slice(&src_ppn.get_bytes_array());
+        }
         memory_set
     }
     pub fn activate(&self) {
