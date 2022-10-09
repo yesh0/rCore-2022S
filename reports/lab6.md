@@ -76,3 +76,18 @@
    ```
    [kernel] Panicked at src/task/processor.rs:109 called `Option::unwrap()` on a `None` value
    ```
+
+## 课程实验收获和改进建议
+
+### 实验收获
+
+- 大概了解了系统调用的较底层实现以及语言标准库与系统调用的包装关系。
+- 大概了解了 Rust 编写操作系统相关部分的方法，了解了包括 `no_std` 以及 `alloc` 等的内容。
+- 了解了 Rust 交叉编译过程以及 QEMU 结合 GDB debug 的流程。
+- 了解了操作系统内存管理的大致思路。
+- 了解了基于 stride 的调度算法。
+
+### 改进建议
+
+- 2022S（春季学期）的仓库的编译流程会将用户例程 `cargo clean` 掉，如果可以优化一下编译流程节省一点重新编译的时间会更好。
+
